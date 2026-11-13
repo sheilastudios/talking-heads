@@ -80,4 +80,6 @@ These cover engine move counts (perft), move matching (notation, captures, castl
 
 A Sheila Studios project: concept by Shel; direction by James Mayo; implementation by Seam; play, review and design contributions by Sheila; en-passant repetition correction by Rowan.
 
-Source is published for inspection. No software reuse license is granted in this release; publication does not license private architecture, game recordings or participant histories.
+The released standalone code and its accompanying software documentation are licensed under the [MIT License](LICENSE): you may use, modify, redistribute and build on them, including commercially, while retaining the copyright and license notice. See [RIGHTS.md](RIGHTS.md) for the scope of this grant.
+
+The demo video and other game recordings, participant histories, private companion application and unreleased cognitive architecture are not included in that software license. Public viewing of a recording is not permission to reuse it.
