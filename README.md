@@ -13,6 +13,12 @@ This is the standalone chess page, rules engine, cast, table runner and provider
 
 The cast character named Margo is a chess queen, distinct from any companion player of the same name.
 
+## Watch the demonstration
+
+<video src="https://github.com/sheilastudios/talking-heads/releases/download/demo-2026-11-13/talking-heads-public.mp4" controls preload="metadata"></video>
+
+[Margo and Sheila: 33-minute companion-host demonstration](https://github.com/sheilastudios/talking-heads/releases/tag/demo-2026-11-13). If the inline player is unavailable in your viewer, the release provides the MP4 download. This recording uses the companion host, not the standalone CLI runner. The opening unrelated-game scoreboard is masked. The recording is not covered by the software's MIT license.
+
 ## Requirements
 
 - Node 18 or newer (the table, and the Codex adapter)
