@@ -1,0 +1,705 @@
+<title>Talking Pieces Chess</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<!-- Talking Pieces chess slice (concept: Shel, Talking-Pieces-Game-Design-and-Reasoning-Report-v1; review: Sheila 11-09).
+     Scripted voices, no model calls. The player controls every move; pieces talk, advise, and remember. Seam, 2026-11-09. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&family=Nunito+Sans:wght@400;600;700&family=Patrick+Hand&display=swap">
+<style>
+/* Layout: club-room table. Board left, the talking head + transcript right; stacks to one column on phones. */
+:root{
+  --bg:#e9eee9; --panel:#f8faf7; --ink:#1c2420; --muted:#5d6b63; --line:#cfd9d2;
+  --felt:#2f6b4f; --on-felt:#ffffff;
+  --light:#ead9b8; --dark:#b58863; --sel:#f2d65c; --last:#e9cf7a66;
+  --hint-w:#2563eb; --hint-b:#c2261d; --bub-w:#ffffff; --bub-w-ink:#1d1a16; --bub-b:#2a1f1f; --bub-b-ink:#f6e9e9;
+  --scrim:#1c242099;
+  --f-display:"Fredoka","Trebuchet MS",system-ui,sans-serif;
+  --f-body:"Nunito Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-voice:"Patrick Hand","Comic Neue","Segoe Print",cursive;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#111814; --panel:#18211c; --ink:#e4ece6; --muted:#97a69d; --line:#2c3a32;
+    --felt:#5fb08a; --on-felt:#0d1a13;
+    --light:#c9b48f; --dark:#8b6544; --sel:#d9bd3f; --last:#d9bd3f55;
+    --hint-w:#6ea0ff; --hint-b:#ff6b5e; --bub-w:#f4f1ea; --bub-w-ink:#1d1a16; --bub-b:#3a2222; --bub-b-ink:#fbeaea;
+    --scrim:#000000a6;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#111814; --panel:#18211c; --ink:#e4ece6; --muted:#97a69d; --line:#2c3a32;
+  --felt:#5fb08a; --on-felt:#0d1a13;
+  --light:#c9b48f; --dark:#8b6544; --sel:#d9bd3f; --last:#d9bd3f55;
+  --hint-w:#6ea0ff; --hint-b:#ff6b5e; --bub-w:#f4f1ea; --bub-w-ink:#1d1a16; --bub-b:#3a2222; --bub-b-ink:#fbeaea;
+  --scrim:#000000a6;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important} /* local copies lack the artifact reset; without this the promotion chooser never hides */
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 var(--f-body)}
+.wrap{max-width:1000px;margin:0 auto;padding-block:16px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;gap:20px;flex-wrap:wrap;justify-content:center}
+h1{font:600 26px/1.15 var(--f-display);margin:0 0 4px;text-wrap:balance}
+.sub{color:var(--muted);font-size:13px;margin:0 0 12px}
+.left{--sz:min(calc(100vw - 34px),520px);flex:0 0 var(--sz);width:var(--sz);min-width:0}
+.board-wrap{position:relative;width:var(--sz);height:var(--sz)}
+.board{display:grid;grid-template-columns:repeat(8,1fr);grid-template-rows:repeat(8,1fr);width:100%;height:100%;border-radius:6px;overflow:hidden;box-shadow:0 2px 10px #0003}
+.sq{position:relative;display:flex;align-items:center;justify-content:center;cursor:pointer;user-select:none}
+.sq.l{background:var(--light)} .sq.d{background:var(--dark)}
+.sq.last::before{content:"";position:absolute;inset:0;background:var(--last)}
+.sq.sel::before{content:"";position:absolute;inset:0;background:var(--sel);opacity:.75}
+.sq .dot{position:absolute;width:28%;height:28%;border-radius:50%;background:#0003}
+.sq .ring{position:absolute;inset:4%;border-radius:50%;border:4px solid #0003}
+.sq.hint-w{box-shadow:inset 0 0 0 4px var(--hint-w)} .sq.hint-b{box-shadow:inset 0 0 0 4px var(--hint-b)}
+.sq.hint-to.hint-w::after,.sq.hint-to.hint-b::after{content:"?";position:absolute;top:1px;right:4px;font-weight:700;font-size:13px;color:var(--hint-w)}
+.sq.hint-to.hint-b::after{color:var(--hint-b)}
+.pc{position:relative;font-size:calc(var(--sz) / 8 * .78);line-height:1;font-family:"Segoe UI Symbol","Noto Sans Symbols 2","DejaVu Sans",serif}
+.pc.w{color:#fbf8f2;text-shadow:0 0 1px #000,0 0 1px #000,0 1px 2px #0008}
+.pc.b{color:#1b1715;text-shadow:0 0 1px #fff6,0 1px 1px #0006}
+.sq.speaking .pc{animation:bob .5s ease-in-out infinite alternate}
+@keyframes bob{from{transform:translateY(0)}to{transform:translateY(-6%) scale(1.06)}}
+.coord{position:absolute;font:600 10px/1 var(--f-body);pointer-events:none}
+.sq.d .coord{color:#ffffff} .sq.l .coord{color:#1c1a17} /* white on dark squares, dark on light (James 11-09) */
+.coord.f{left:3px;bottom:1px} .coord.r{right:3px;top:1px}
+.bubble{position:absolute;width:56%;padding:8px 10px;border-radius:10px;background:var(--bub-w);color:var(--bub-w-ink);font:17px/1.25 var(--f-voice);box-shadow:0 4px 14px #0004;pointer-events:none;transform:translate(-50%,calc(-100% - 8px));z-index:5;opacity:0;transition:opacity .15s}
+.bubble.show{opacity:1}
+.bubble.below{transform:translate(-50%,8px)}
+.bubble.b{background:var(--bub-b);color:var(--bub-b-ink)}
+.bubble b{display:block;font:700 11px/1.3 var(--f-body);letter-spacing:.06em;text-transform:uppercase;opacity:.7}
+.bubble::after{content:"";position:absolute;left:var(--tail,50%);bottom:-7px;margin-left:-7px;border:7px solid transparent;border-bottom:0;border-top-color:var(--bub-w)}
+.bubble.b::after{border-top-color:var(--bub-b)}
+.bubble.below::after{bottom:auto;top:-7px;border-top:0;border-bottom:7px solid var(--bub-w)}
+.bubble.below.b::after{border-bottom-color:var(--bub-b)}
+.promo{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:var(--scrim);z-index:6;border-radius:6px}
+.promo .box{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:8px;align-items:center}
+.promo .box span{font:600 15px var(--f-display)}
+.promo .row{display:flex;gap:8px}
+.promo button{font-size:34px;line-height:1;padding:6px 10px;font-family:"Segoe UI Symbol","Noto Sans Symbols 2","DejaVu Sans",serif;background:var(--light);color:#fbf8f2;text-shadow:0 0 1px #000,0 0 1px #000}
+.status{margin-top:10px;min-height:22px;font:500 17px/1.3 var(--f-display)}
+.right{flex:1 1 300px;max-width:420px;min-width:0;display:flex;flex-direction:column;gap:12px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px}
+.head{display:flex;gap:12px;align-items:center}
+.portrait{flex:0 0 72px;height:72px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:48px;background:var(--light);border:3px solid var(--line);font-family:"Segoe UI Symbol","Noto Sans Symbols 2","DejaVu Sans",serif}
+.portrait.b{background:#5a4a40}
+.portrait.talking{animation:talk .18s ease-in-out infinite alternate}
+@keyframes talk{from{transform:scale(1)}to{transform:scale(1.07) rotate(-2deg)}}
+.who{min-width:0}
+.who .nm{font:600 19px/1.2 var(--f-display)}
+.who .tt{color:var(--muted);font-size:13px}
+.who .rec{font-size:12.5px;margin-top:3px}
+.quote{margin-top:10px;font:19px/1.3 var(--f-voice);min-height:25px}
+.btns,.opts{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.opts{gap:6px 14px}
+button{font:inherit;padding:8px 12px;border-radius:8px;border:1px solid var(--line);background:var(--panel);color:var(--ink);cursor:pointer}
+button.primary{background:var(--felt);border-color:var(--felt);color:var(--on-felt);font-weight:700}
+button.quiet{padding:4px 8px;font-size:13px;color:var(--muted)}
+button:disabled{opacity:.5;cursor:default}
+button:focus-visible,input:focus-visible{outline:3px solid var(--hint-w);outline-offset:2px}
+.log{max-height:260px;overflow:auto;font-size:13.5px;display:flex;flex-direction:column;gap:6px}
+.log .e{display:flex;gap:6px}
+.log .e .g{flex:0 0 18px;text-align:center;font-family:"Segoe UI Symbol","Noto Sans Symbols 2",serif}
+.log .e.b .n{color:var(--hint-b)} .log .e.w .n{color:var(--hint-w)}
+.log .e.sys{color:var(--muted);font-style:italic}
+.log .mk{color:var(--felt)}
+.note{color:var(--muted);font-size:12.5px;margin:0}
+label.tog{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--muted)}
+@media (prefers-reduced-motion: reduce){.portrait.talking,.sq.speaking .pc{animation:none}.bubble{transition:none}}
+</style>
+<div class="wrap">
+  <div class="left">
+    <h1>Talking Pieces: Chess</h1>
+    <p class="sub">You move. They talk. Some of them even know what they're talking about.</p>
+    <div class="board-wrap" id="bw">
+      <div class="board" id="board"></div>
+      <div class="bubble" id="bubble"></div>
+      <div class="promo" id="promo" hidden>
+        <div class="box"><span>Promote to</span><div class="row" id="promoRow"></div></div>
+      </div>
+    </div>
+    <div class="status" id="status"></div>
+  </div>
+  <div class="right">
+    <div class="card">
+      <div class="head">
+        <div class="portrait" id="portrait">♚&#xFE0E;</div>
+        <div class="who">
+          <div class="nm" id="hname">Aldric</div>
+          <div class="tt" id="htitle">Your king · Would prefer not to.</div>
+          <div class="rec" id="hrec"></div>
+        </div>
+      </div>
+      <div class="quote" id="hquote"></div>
+    </div>
+    <div class="btns">
+      <button class="primary" id="ask">Ask for a tip</button>
+      <button id="new">New game</button>
+    </div>
+    <p class="note" id="tip" role="status" hidden></p>
+    <div class="opts">
+      <label class="tog"><input type="checkbox" id="chatty" checked> Chatty</label>
+      <label class="tog"><input type="checkbox" id="remember" checked> Remember past games</label>
+      <label class="tog" id="modelWrap" hidden><input type="checkbox" id="modelOn" checked> Model voices</label>
+      <button class="quiet" id="forget">Forget history</button>
+    </div>
+    <p class="note" id="memline"></p>
+    <div class="card"><div class="log" id="log"></div></div>
+    <p class="note">You play White. Select one of your pieces and press <b>Ask for a tip</b> to hear from that piece, or ask with nothing selected and someone volunteers. Each piece has a hidden reliability, and a tip is graded when you play it. Black's pieces taunt you and sometimes offer tips. Don't trust those.</p>
+    <p class="note">The pieces remember. Within a game they notice when you ignore them or leave them hanging. With <b>Remember past games</b> on, they carry their records and grudges into the next game. The browser saves that history. When model voices are enabled, relevant memories may be sent with a line request. Turning <b>Chatty</b> off keeps dialogue to key events and requested tips.</p>
+    <p class="note" id="modelNote" hidden>With <b>Model voices</b> on, Claude writes one line per beat live, from what happened and what that piece remembers, using your own Claude usage. Lines marked ✦ came from the model. The game still decides every move and every event, and the pieces fall back to their scripted lines whenever the model is slow or unavailable.</p>
+    <p class="note">The quick engine grades each tip when you play it. House rules automatically draw after threefold repetition, 50 moves per side without a pawn move or capture, or insufficient material detected by the engine.</p>
+  </div>
+</div>
+<script src="../src/chess-core.js"></script>
+<script src="../src/chess-cast.js"></script>
+<script>
+"use strict";
+// ================= chess core: the same engine as src/chess-core.js =================
+const {VAL,GLYPH,TNAME,PROMOS,MATE,sqName,opp,attacked,cheapestAttacker,kingSq,inCheck,genPseudo,makeMove,legalMoves,posKey,insufficient,evaluate,analyze}=ChessCore;
+
+// ================= cast and lines: the same cast as src/chess-cast.js =================
+const {BLURB,WBACK,WPAWN,BBACK,BPAWN,L,GEN}=ChessCast;
+
+// ================= memory across games (this browser only) =================
+const STORE='talking-pieces-chess:v1';
+const blankMem=()=>({games:0,pieces:{}});
+function loadMem(){try{const s=localStorage.getItem(STORE);const m=s?JSON.parse(s):null;return m&&m.pieces?m:blankMem();}catch(e){return blankMem();}}
+function saveMem(){try{localStorage.setItem(STORE,JSON.stringify(MEM));}catch(e){}}
+let MEM=loadMem();
+function pm(id){return MEM.pieces[id]||(MEM.pieces[id]={games:0,wins:0,losses:0,draws:0,captures:0,captured:0,tipsGood:0,tipsBad:0,last:null});}
+
+// ================= state =================
+let st,CH,G,sel,legal,analysis,lastMove,over,busy,pendingAdvice,seen,promoPick;
+let gameId=0,aiTimer=null;
+const $=id=>document.getElementById(id);
+const pick=a=>a[Math.floor(Math.random()*a.length)];
+const chatty=()=>$('chatty').checked;
+const remember=()=>$('remember').checked;
+function later(fn,ms){const g=gameId;return setTimeout(()=>{if(g===gameId)fn();},ms);}
+function bump(){const k=posKey(st);seen[k]=(seen[k]||0)+1;}
+
+function newGame(){
+  gameId++;clearTimeout(aiTimer);
+  stopSpeech();recent.length=0;
+  const b=Array(64).fill(null);CH={};G={};
+  const mk=(c,t,i,name,voice,rel)=>{const id=c+i;CH[id]={id,c,name,voice,rel,good:0,bad:0};G[id]={moves:0,captures:0,endangered:0,ignored:0,sacrificed:false,capturedBy:null};return {c,t,id};};
+  'rnbqkbnr'.split('').forEach((t,f)=>{
+    b[56+f]=mk('w',t,'B'+f,WBACK[f][0],WBACK[f][1],WBACK[f][2]);
+    b[48+f]=mk('w','p','P'+f,WPAWN[f][0],'chorus',WPAWN[f][1]);
+    b[f]=mk('b',t,'B'+f,BBACK[f][0],BBACK[f][1],.2);
+    b[8+f]=mk('b','p','P'+f,BPAWN[f],'grunts',.2);
+  });
+  st={b,turn:'w',cr:{wK:true,wQ:true,bK:true,bQ:true},ep:-1,half:0};
+  seen={};bump();
+  sel=null;lastMove=null;over=false;busy=false;pendingAdvice=null;promoPick=null;$('promo').hidden=true;
+  $('log').innerHTML='';$('hquote').textContent='';
+  legal=legalMoves(st);analysis=null;
+  render();showHead('wB4');updateMemLine();
+  sys(remember()&&MEM.games?`Game ${MEM.games+1}. You are White. They remember you.`:'New game. You are White.');
+  modelBudget=1;
+  if(chatty()&&!(remember()&&greet()))say('bB4','taunt',{},4);
+  later(()=>{if(!analysis)analysis=analyze(st);},50);
+}
+// Opening lines drawn from last game's memory: at most one per side, plus a possible comeback.
+function greet(){
+  if(!MEM.games)return false;
+  const W=[],B=[],last=id=>MEM.pieces[id]&&MEM.pieces[id].last;
+  if(last('wB3')&&last('wB3').captured)W.push(['wB3','greet_returned']);
+  for(const id in CH)if(CH[id].c==='w'&&last(id)&&last(id).sacrificed)W.push([id,'greet_sacrificed']);
+  for(const id in CH)if(CH[id].c==='w'&&last(id)&&last(id).mated)W.push([id,'greet_hero']);
+  if(MEM.games>=2)W.push(['wB4','greet_regular',{n:MEM.games+1}]);
+  const k=last('bB4');
+  if(k)B.push(['bB4',k.result==='loss'?'greet_lost':k.result==='win'?'greet_won':'greet_drew']);
+  const grudges=Object.keys(CH).filter(id=>CH[id].c==='b'&&last(id)&&last(id).capturedBy);
+  if(grudges.length){const id=pick(grudges);B.splice(Math.random()<.5?0:1,0,[id,'greet_grudge',{name:last(id).capturedBy}]);}
+  let said=false;
+  if(B.length){say(B[0][0],B[0][1],B[0][2]);said=true;}
+  if(W.length){say(W[0][0],W[0][1],W[0][2]);said=true;}
+  else if(B.length&&chatty()){const o=randomPiece('w',[],true);if(o)say(o,'retort');}
+  return said;
+}
+
+// ================= model voices (artifact `sample` capability) =================
+// The engine decides what happened and who speaks; the model only phrases the line. One model line per beat at most.
+const VOICE_DESC={
+  braggart:'boastful and theatrical; confidence far exceeds reliability; craves glory and charging forward',
+  anxious:'nervous and self-protective; worries constantly; wants everyone else between the king and danger',
+  sarcastic:'arrogant, sarcastic and vain; knows the queen does most of the work and says so',
+  laconic:'terse and dry, one to five words; happy for someone else to be brave',
+  pompous:'pompous clergy; self-important; prefers that others go first',
+  cryptic:'cryptic and oracular; speaks in angles, lines and omens',
+  pragmatic:'plain, practical and honest; no flair',
+  chorus:'an eager, small, brave and slightly silly pawn',
+  menacing:'menacing and cold; keeps a frosty dignity even in defeat',
+  sly:'sly and sweetly treacherous',
+  feral:'feral and gleeful; bites first',
+  grunts:'a grubby, blunt foot-soldier pawn'};
+const MUST_QUOTE=new Set(['advise','advise_bias','advise_sore','tip_good','tip_bad']);
+// voice = {label, timeoutMs, ask(prompt, signal) -> Promise<{text}>}; Claude via `sample` when published,
+// any adapter via voices/serve.py when run locally. null = scripted lines only.
+let voice=null,modelBudget=0,modelPausedUntil=0;
+const recent=[];
+const modelOn=()=>!!voice&&$('modelOn').checked&&Date.now()>modelPausedUntil;
+function describeEvent(id,key,v){
+  const n=CH[id].name;
+  switch(key){
+    case'capture':return `${n} just captured ${v.victim}.`;
+    case'streak':return `${n} just captured ${v.victim}. That is capture number ${v.n} for ${n} this game.`;
+    case'last':return `${n} has just been captured by ${v.by} and is leaving the board. These are last words.`;
+    case'sacrificed':return `The player put ${n} where it can be taken. The quick engine rates the move sound. ${n} can interpret this as a sacrifice.`;
+    case'hung':case'hung_again':return `The player just left ${n} undefended where the enemy can take it. A blunder.`;
+    case'others_sacrifice':return `The player just sacrificed ${v.name}. ${n} comments, relieved it was not ${n}.`;
+    case'check_recv':return `${n}, the king, has just been put in check.`;
+    case'check_give':return `${n} just put the enemy king in check.`;
+    case'danger':case'danger_again':return `${n} is under attack and may be captured next move.`;
+    case'gloat':return `The player just made a bad move. ${n}, on the other side, gloats.`;
+    case'taunt':return `${n} just moved and taunts the player across the board.`;
+    case'retort':return `An enemy piece just taunted ${n}'s side. ${n} answers back.`;
+    case'reply_boast':return `${v.name} just captured a piece and bragged about it. ${n} responds to ${v.name}.`;
+    case'challenge':return `${v.name} just gave the player a tip, but ${v.name}'s tips have gone badly before. ${n} warns the player.`;
+    case'told':return `The player followed ${n}'s tip and the quick engine rated the move good.`;
+    case'excuse':return `The player followed ${n}'s tip and the quick engine rated the move bad. ${n} makes an excuse.`;
+    case'sulk':return `The player ignored ${n}'s tip.`;
+    case'advise':case'advise_sore':case'advise_bias':
+      return `The player asked ${n} for a tip. ${n} recommends this move: ${v.move}.`+
+        (key==='advise_sore'?` The player has ignored ${n}'s tips at least twice already.`:'')+
+        (key==='advise_bias'?` ${n} recommends it for personal reasons that fit the personality.`:'');
+    case'tip_good':case'tip_bad':return `${n} is on the opposing side but offers the player a tip anyway: ${v.move}. Be suspiciously friendly; don't reveal whether it is good.`;
+    case'respect':return `The player's ${v.kind} gave a tip that worked. ${n}, on the opposing side, grudgingly admits it.`;
+    case'promote':return `${n}, a pawn, just reached the last rank and became a ${String(v.piece).toLowerCase()}.`;
+    case'win':return `The game just ended in checkmate and ${n}'s side won.`;
+    case'lose':return `The game just ended in checkmate. ${n}, the king, lost.`;
+    case'draw':return `The game just ended in a draw.`;
+    case'greet_returned':return `A new game is starting. Last game ${n} was captured.`;
+    case'greet_sacrificed':return `A new game is starting. Last game the player sacrificed ${n}.`;
+    case'greet_hero':return `A new game is starting. Last game ${n} delivered checkmate.`;
+    case'greet_lost':return `A new game is starting. Last game ${n} was checkmated by this same player.`;
+    case'greet_won':return `A new game is starting. Last game ${n} beat this same player.`;
+    case'greet_drew':return `A new game is starting. The last game against this player was a draw.`;
+    case'greet_grudge':return `A new game is starting. Last game ${n} was captured by ${v.name}, who is back too.`;
+    case'greet_regular':return `A new game is starting. It is game number ${v.n} with this player.`;
+    default:return null;
+  }
+}
+function memoryText(id){
+  const g=G[id],n=CH[id].name,bits=[];
+  if(g.captures)bits.push(`captures this game: ${g.captures}`);
+  if(g.ignored)bits.push(`tips of ${n}'s the player ignored this game: ${g.ignored}`);
+  if(g.endangered)bits.push(`times left in danger this game: ${g.endangered}`);
+  const P=remember()?MEM.pieces[id]:null;
+  if(P&&P.games){
+    bits.push(`earlier games with this player: ${P.games} (${P.wins} won, ${P.losses} lost, ${P.draws} drawn)`);
+    if(P.tipsGood+P.tipsBad)bits.push(`the player has taken ${P.tipsGood+P.tipsBad} of ${n}'s tips over time: ${P.tipsGood} good, ${P.tipsBad} bad`);
+    const l=P.last;if(l)bits.push(`last game: ${l.result}`+(l.capturedBy?`, captured by ${l.capturedBy}`:'')+(l.sacrificed?', sacrificed by the player':'')+(l.mated?', delivered the checkmate':''));
+  }
+  return bits.join('; ')||'nothing notable yet';
+}
+function cleanLine(t,key,vars,name){
+  t=String(t||'').split('\n').map(s=>s.trim()).filter(Boolean)[0]||'';
+  t=t.replace(/^["“”']+|["“”']+$/g,'').trim();
+  if(name&&t.toLowerCase().startsWith(name.toLowerCase()+':'))t=t.slice(name.length+1).trim();
+  t=t.replace(/^["“”']+|["“”']+$/g,'').trim();
+  if(!t||t.length>220)return null;
+  if(MUST_QUOTE.has(key)&&!t.toLowerCase().includes(String(vars.move).toLowerCase()))return null; // a tip must name the real move
+  return t.charAt(0).toUpperCase()+t.slice(1);
+}
+function onSampleError(e){
+  const code=e&&e.code;
+  if(['not_granted','sampling_disabled','not_declared','capability_disabled','capability_removed'].includes(code)){
+    voice=null;$('modelWrap').hidden=true;$('modelNote').hidden=true;sys('Model voices are off for this view. The scripted cast carries on.');
+  } else if(code==='rate_limited'){
+    if(Date.now()>modelPausedUntil)sys('Claude is busy for a minute. Scripted lines until then.');
+    modelPausedUntil=Date.now()+60000;
+  }
+}
+function requestLine(id,key,vars){
+  const ev=describeEvent(id,key,vars);if(!ev)return null;
+  const ch=CH[id];
+  const examples=lines(ch.voice,key).slice(0,3).map(s=>'- '+fill(s,vars)).join('\n');
+  const prompt=`You voice one piece in a comedy chess game called Talking Pieces. The game engine owns the board and the rules; you only write what this piece says.
+
+Piece: ${ch.name}, ${ch.c==='w'?"one of the player's pieces (White)":"an opposing piece (Black)"}, a ${TNAME[typeOf(id)]}.
+Personality: ${VOICE_DESC[ch.voice]}.
+Lines this piece has said in similar moments (match the voice, don't copy them):
+${examples}
+What just happened: ${ev}
+What this piece remembers: ${memoryText(id)}.
+Recent dialogue:
+${recent.slice(-5).join('\n')||'(none yet)'}
+
+Write ONE line that ${ch.name} says now. Under 18 words. In character and funny. Use the memory only if it fits naturally. Don't invent moves, captures or history that aren't stated above. No stage directions, quotation marks, emoji or name prefix.${MUST_QUOTE.has(key)?` The line must contain this exact move text: ${vars.move}`:''}
+Reply with only the line.`;
+  const adapter=voice;
+  return {adapter,async run(signal){
+    try{const r=await adapter.ask(prompt,signal);return signal.aborted?null:cleanLine(r?.text,key,vars,ch.name);}
+    catch(e){if(!signal.aborted&&e?.code!=='cancelled')onSampleError(e);return null;}
+  }};
+}
+
+// ================= speech =================
+const queue=[];let activeSpeech=null,speakTimer=null;const decks={},lastLine={};
+function lines(voice,key){return (L[voice]&&L[voice][key])||GEN[key]||[];}
+function deal(voice,key){
+  const pool=lines(voice,key);if(!pool.length)return null;
+  const k=voice+'|'+key;let d=decks[k];
+  if(!d||!d.length){d=decks[k]=pool.slice().sort(()=>Math.random()-.5);if(d.length>1&&d[d.length-1]===lastLine[k])d.unshift(d.pop());}
+  return lastLine[k]=d.pop();
+}
+function fill(t,v){t=t.replace(/\{(\w+)\}/g,(_,k)=>v[k]!=null?v[k]:'');return t.charAt(0).toUpperCase()+t.slice(1);}
+function pieceSq(id){for(let i=0;i<64;i++){const p=st.b[i];if(p&&p.id===id)return i;}return -1;}
+function say(id,key,vars,anchor,advice=null){
+  const ch=CH[id];if(!ch)return false;
+  const line=deal(ch.voice,key);if(!line)return false;
+  const item={id,text:fill(line,vars||{}),anchor,advice};
+  if(modelBudget>0&&modelOn()){const r=requestLine(id,key,vars||{});if(r){modelBudget--;item.model=r;}}
+  if(queue.length>=5)queue.shift();
+  queue.push(item);
+  pump();return true;
+}
+async function pump(){
+  if(activeSpeech||!queue.length)return;
+  const it=queue.shift();activeSpeech=it;
+  if(it.model&&it.model.adapter===voice&&modelOn()){
+    // Launch only the line being shown. An obsolete queued line spends no model call.
+    const ctl=it.ctl=new AbortController();
+    let timeout;
+    showBubble({id:it.id,text:'…',anchor:it.anchor});showHead(it.id,'…');
+    const fallback=new Promise(resolve=>{
+      ctl.signal.addEventListener('abort',()=>resolve(null),{once:true});
+      timeout=setTimeout(()=>ctl.abort(),it.model.adapter.timeoutMs);
+    });
+    const t=await Promise.race([it.model.run(ctl.signal),fallback]);
+    clearTimeout(timeout);it.ctl=null;
+    if(activeSpeech!==it)return;
+    if(t&&!ctl.signal.aborted){it.text=t;it.byModel=true;}
+  }
+  showBubble(it);showHead(it.id,it.text);addLog(it.id,it.text,it.byModel);
+  recent.push(`${CH[it.id].name}: ${it.text}`);if(recent.length>8)recent.shift();
+  speakTimer=setTimeout(()=>{stopSpeaking();pump();},Math.min(4500,1500+it.text.length*38));
+}
+function stopSpeaking(){
+  clearTimeout(speakTimer);
+  const it=activeSpeech;activeSpeech=null;
+  it?.ctl?.abort();hideBubble();
+}
+function stopSpeech(){queue.length=0;stopSpeaking();}
+function clearAdvice(){
+  pendingAdvice=null;
+  for(let i=queue.length-1;i>=0;i--)if(queue[i].advice)queue.splice(i,1);
+  if(activeSpeech?.advice){stopSpeaking();$('hquote').textContent='';}
+}
+function placeBubble(it){
+  const bub=$('bubble'),ch=CH[it.id],live=pieceSq(it.id),s=live>=0?live:it.anchor;
+  document.querySelectorAll('.sq.speaking').forEach(e=>e.classList.remove('speaking'));
+  if(!Number.isInteger(s)||s<0||s>=64){bub.classList.remove('show');return false;}
+  const el=live>=0?document.querySelector(`.sq[data-i="${live}"]`):null;if(el)el.classList.add('speaking');
+  const r=s>>3,c=s&7,x=(c+.5)/8*100,cx=Math.min(72,Math.max(28,x));
+  bub.className='bubble '+ch.c+(r<2?' below':'')+(bub.classList.contains('show')?' show':'');
+  bub.style.left=cx+'%';bub.style.top=((r<2?r+1:r)/8*100)+'%';
+  bub.style.setProperty('--tail',(50+(x-cx)/56*100)+'%');
+  return true;
+}
+function showBubble(it){
+  if(!placeBubble(it))return;
+  const bub=$('bubble'),ch=CH[it.id];
+  bub.innerHTML='';const nb=document.createElement('b');nb.textContent=ch.name;bub.append(nb,document.createTextNode(it.text));
+  const showing=activeSpeech;
+  requestAnimationFrame(()=>{if(activeSpeech===showing)bub.classList.add('show');});
+  $('portrait').classList.add('talking');
+}
+function hideBubble(){$('bubble').classList.remove('show');$('portrait').classList.remove('talking');document.querySelectorAll('.sq.speaking').forEach(e=>e.classList.remove('speaking'));}
+// Last known type survives capture, so a promoted pawn stays a queen in the portrait and log.
+function typeOf(id){const s=pieceSq(id);if(s>=0)return CH[id].t=st.b[s].t;if(CH[id]&&CH[id].t)return CH[id].t;const k=id.slice(1);return k[0]==='P'?'p':'rnbqkbnr'[+k[1]];}
+function showHead(id,text){
+  const ch=CH[id];if(!ch)return;const t=typeOf(id),por=$('portrait');
+  por.textContent=GLYPH[t]+'︎';
+  por.className='portrait '+ch.c+(por.classList.contains('talking')?' talking':'');
+  por.style.color=ch.c==='w'?'#fbf8f2':'#1b1715';
+  por.style.textShadow=ch.c==='w'?'0 0 1px #000,0 0 1px #000':'0 0 1px #fff8';
+  $('hname').textContent=ch.name+(pieceSq(id)<0?' (captured)':'');
+  $('htitle').textContent=(ch.c==='w'?'Your ':'Their ')+TNAME[t]+' · '+BLURB[ch.voice];
+  const P=remember()?MEM.pieces[id]:null;
+  const good=P?P.tipsGood:ch.good,bad=P?P.tipsBad:ch.bad;const bits=[];
+  if(good+bad)bits.push(`Tips you took (engine-rated): ${good} good, ${bad} bad`);
+  else if(ch.c==='w')bits.push('Track record: unknown');
+  if(P&&P.games)bits.push(ch.c==='w'?`${P.games} game${P.games>1?'s':''} together`:`Has played you ${P.games} time${P.games>1?'s':''}`);
+  $('hrec').textContent=bits.join(' · ');
+  $('hquote').textContent=text===undefined?'':'“'+text+'”';
+}
+function addLog(id,text,byModel){
+  const ch=CH[id],e=document.createElement('div');e.className='e '+ch.c;
+  const g=document.createElement('span');g.className='g';g.textContent=GLYPH[typeOf(id)]+'︎';
+  const t=document.createElement('span');const n=document.createElement('b');n.className='n';n.textContent=ch.name+': ';t.append(n,document.createTextNode(text));
+  if(byModel){const k=document.createElement('span');k.className='mk';k.textContent=' ✦';k.title='Written live by Claude';t.append(k);}
+  e.append(g,t);$('log').prepend(e);trimLog();
+}
+function sys(text){const e=document.createElement('div');e.className='e sys';e.textContent=text;$('log').prepend(e);trimLog();}
+function trimLog(){const l=$('log');while(l.children.length>60)l.lastChild.remove();}
+function updateMemLine(){
+  $('memline').textContent=remember()?(MEM.games?`Remembering ${MEM.games} finished game${MEM.games>1?'s':''} in this browser.`:'No finished games remembered yet.'):'Memory off: every game starts fresh, and nothing is recorded.';
+}
+
+// ================= board =================
+function render(){
+  const bd=$('board');bd.innerHTML='';
+  const targets=sel!=null?legal.filter(m=>m.from===sel):[];
+  for(let i=0;i<64;i++){
+    const r=i>>3,c=i&7,d=document.createElement('div');
+    d.className='sq '+((r+c)%2?'d':'l');d.dataset.i=i;
+    if(lastMove&&(lastMove.from===i||lastMove.to===i))d.classList.add('last');
+    if(sel===i)d.classList.add('sel');
+    if(pendingAdvice&&(pendingAdvice.from===i||pendingAdvice.to===i)){d.classList.add('hint-'+pendingAdvice.side);if(pendingAdvice.to===i)d.classList.add('hint-to');}
+    const p=st.b[i];
+    if(p){if(CH[p.id])CH[p.id].t=p.t;const s=document.createElement('span');s.className='pc '+p.c;s.textContent=GLYPH[p.t]+'︎';d.append(s);}
+    const tg=targets.find(m=>m.to===i);
+    if(tg){const k=document.createElement('span');k.className=tg.cap?'ring':'dot';d.append(k);}
+    if(c===7){const k=document.createElement('span');k.className='coord r';k.textContent=8-r;d.append(k);}
+    if(r===7){const k=document.createElement('span');k.className='coord f';k.textContent='abcdefgh'[c];d.append(k);}
+    d.addEventListener('click',()=>onSquare(i));
+    bd.append(d);
+  }
+  if(activeSpeech)placeBubble(activeSpeech);
+  $('ask').disabled=over||busy||st.turn!=='w'||!!promoPick;
+  $('tip').hidden=!pendingAdvice;
+  $('tip').textContent=pendingAdvice?`${CH[pendingAdvice.id].name} suggests ${pendingAdvice.move}.`:'';
+  if(!over)$('status').textContent=busy?'Black is thinking…':(inCheck(st,'w')?'Check! Your move.':'Your move.');
+}
+function onSquare(i){
+  if(over||busy||st.turn!=='w'||promoPick)return;
+  if(sel!=null){
+    const ms=legal.filter(m=>m.from===sel&&m.to===i);
+    if(ms.length>1){askPromotion(ms);return;}
+    if(ms.length){playerMove(ms[0]);return;}
+  }
+  const p=st.b[i];
+  if(p&&p.c==='w'){sel=sel===i?null:i;showHead(p.id);}
+  else{sel=null;if(p)showHead(p.id);}
+  render();
+}
+function askPromotion(ms){
+  promoPick=ms;const row=$('promoRow');row.innerHTML='';
+  for(const t of PROMOS){const bt=document.createElement('button');bt.textContent=GLYPH[t]+'︎';bt.title=TNAME[t];bt.setAttribute('aria-label','Promote to '+TNAME[t]);
+    bt.addEventListener('click',()=>{const m=promoPick.find(x=>x.promo===t);promoPick=null;$('promo').hidden=true;playerMove(m);});row.append(bt);}
+  $('promo').hidden=false;$('ask').disabled=true;row.firstChild.focus();
+}
+function describe(m){
+  if(m.castle)return m.castle==='K'?'castle kingside':'castle queenside';
+  return `${TNAME[m.piece.t]} ${sqName(m.from)} ${m.cap?'takes on':'to'} ${sqName(m.to)}${m.promo&&m.promo!=='q'?' (make it a '+TNAME[m.promo]+')':''}`;
+}
+function randomPiece(color,exclude=[],nonPawn=false){
+  const ids=[];for(let i=0;i<64;i++){const p=st.b[i];if(p&&p.c===color&&!exclude.includes(p.id)&&(!nonPawn||p.t!=='p'))ids.push(p.id);}
+  return ids.length?pick(ids):null;
+}
+// A piece is in danger if it is attacked and either undefended or attackable by something cheaper.
+function inDanger(b,s,color){const p=b[s];const ca=cheapestAttacker(b,s,opp(color));if(ca===Infinity)return false;return !attacked(b,s,color)||ca<VAL[p.t];}
+function dangerList(color){
+  const out=[];for(let i=0;i<64;i++){const p=st.b[i];if(p&&p.c===color&&p.t!=='p'&&p.t!=='k'&&inDanger(st.b,i,color))out.push({id:p.id,v:VAL[p.t]});}
+  return out.sort((a,b)=>b.v-a.v);
+}
+
+// ================= reactions: pieces choose their moments =================
+function reactMove(side,m,loss){
+  const mover=m.piece.id,gm=G[mover],quiet=!chatty();
+  if(m.cap){
+    gm.captures++;G[m.cap.id].capturedBy=CH[mover].name;
+    const notable=gm.captures===1||m.cap.t!=='p';
+    const victim=`${CH[m.cap.id].name} the ${TNAME[m.cap.t]}`,by=`${CH[mover].name} the ${TNAME[m.piece.t]}`;
+    if(notable||(!quiet&&Math.random()<.3))say(mover,gm.captures>=2?'streak':'capture',{n:gm.captures,victim},m.to);
+    if(m.cap.t!=='p'||(!quiet&&Math.random()<.5))say(m.cap.id,'last',{by},m.epCap!=null?m.epCap:m.to);
+    if(side==='w'&&!quiet&&notable&&Math.random()<.3){const o=randomPiece('w',[mover],true);if(o)say(o,'reply_boast',{name:CH[mover].name});}
+  }
+  if(m.promo)say(mover,'promote',{piece:TNAME[m.promo].toUpperCase()});
+  if(m.castle&&!quiet)say(mover,'castle');
+  const checked=inCheck(st,st.turn);
+  if(checked){if(!quiet)say(mover,'check_give');const k=st.b[kingSq(st.b,st.turn)];if(k)say(k.id,'check_recv');}
+  if(side==='w'&&!checked){
+    const p=st.b[m.to];
+    if(p&&p.t!=='p'&&p.t!=='k'&&inDanger(st.b,m.to,'w')){
+      if(loss<=60){gm.sacrificed=true;if(!quiet){say(mover,'sacrificed');const o=randomPiece('w',[mover],true);if(o)say(o,'others_sacrifice',{name:CH[mover].name});}return;}
+      if(loss>=200){gm.endangered++;if(!quiet){say(mover,gm.endangered>=2?'hung_again':'hung');say(randomPiece('b'),'gloat');}return;}
+    }
+    if(loss>=200&&!quiet){say(randomPiece('b'),'gloat');return;}
+  }
+  if(!m.cap&&!m.promo&&!m.castle&&!checked&&!quiet){
+    if(side==='w'&&gm.moves===1&&Math.random()<.3)say(mover,'first_move');
+    else if(side==='b'&&Math.random()<.18){say(mover,'taunt');if(Math.random()<.35){const o=randomPiece('w',[],true);if(o)say(o,'retort');}}
+  }
+}
+
+// ================= advice =================
+function tipRecord(id){const P=remember()?MEM.pieces[id]:null,ch=CH[id];return P?{g:P.tipsGood,b:P.tipsBad}:{g:ch.good,b:ch.bad};}
+// Advice is bent by each piece's interests (Sheila's idea, 11-09). Unreliable tips come from a motive, not chance:
+// glory, self-preservation, vanity, or volunteering somebody else. Honest tips are picked in character too.
+const fwd=m=>m.piece.c==='w'?(m.from>>3)-(m.to>>3):(m.to>>3)-(m.from>>3);
+function nearOwnKing(s,c){const k=kingSq(st.b,c);return k>=0&&Math.max(Math.abs((k>>3)-(s>>3)),Math.abs((k&7)-(s&7)))<=1;}
+function othersHanging(s2,id){for(let i=0;i<64;i++){const p=s2.b[i];if(p&&p.c==='w'&&p.id!==id&&p.t!=='p'&&p.t!=='k'&&inDanger(s2.b,i,'w'))return true;}return false;}
+const BIAS={
+  braggart:(m,id)=>(m.piece.id===id?3:0)+(m.piece.t==='n'?1:0)+(m.cap?2:0)+(fwd(m)>0?1:0),
+  anxious:(m)=>(m.piece.t==='k'||m.castle?3:0)+(nearOwnKing(m.to,'w')?2:0),
+  pompous:(m,id,s2)=>(m.piece.id===id?-3:0)+(othersHanging(s2,id)?2:0),
+  laconic:(m,id,s2)=>(m.piece.id===id?-2:0)+(othersHanging(s2,id)?3:0),
+  sarcastic:(m)=>(m.piece.t==='q'?3:0)+(m.cap?1:0),
+  cryptic:(m)=>(m.piece.t==='b'?3:0)+(m.cap?0:1),
+  pragmatic:()=>0,
+  chorus:(m)=>(m.piece.t==='p'?3:0)+(fwd(m)>0?1:0),
+};
+function inCharacter(pool,ch){
+  const f=BIAS[ch.voice];if(!f||pool.length<2)return pick(pool);
+  const scored=pool.map(x=>({x,b:f(x.m,ch.id,makeMove(st,x.m))}));
+  const top=Math.max(...scored.map(s=>s.b));
+  return pick(scored.filter(s=>s.b>=top-1)).x;
+}
+function adviceFrom(id,side){
+  if(!id||promoPick||(side==='b'&&pendingAdvice))return;
+  if(!analysis)analysis=analyze(st);
+  const a=analysis;if(!a.list.length)return;
+  if(side==='w')modelBudget=1; // an asked-for tip is its own beat
+  const ch=CH[id],honest=Math.random()<ch.rel,loss=x=>a.best-x.s;
+  let pool;
+  if(honest)pool=a.list.filter(x=>loss(x)<=40);
+  else if(ch.rel>=.75)pool=a.list.filter(x=>loss(x)>60&&loss(x)<150);   // reliable pieces err small
+  else pool=a.list.filter(x=>loss(x)>=150);
+  if(!pool.length&&!honest)pool=a.list.filter(x=>loss(x)>60);
+  if(!pool.length)pool=honest?[a.list[0]]:a.list.slice(-Math.max(1,Math.ceil(a.list.length/3)));
+  const x=side==='w'?inCharacter(pool,ch):pick(pool),good=loss(x)<=60;
+  clearAdvice();
+  pendingAdvice={id,side,from:x.m.from,to:x.m.to,promo:x.m.promo||null,good,move:describe(x.m)};
+  let key='advise';
+  if(side==='w'&&Math.random()<(honest?.15:.55))key='advise_bias';
+  if(side==='w'&&G[id].ignored>=2)key='advise_sore';
+  if(side==='b')key=good?(Math.random()<.7?'tip_good':'tip_bad'):(Math.random()<.3?'tip_good':'tip_bad');
+  say(id,key,{move:pendingAdvice.move},undefined,pendingAdvice);
+  if(side==='w'){const r=tipRecord(id);if(r.b>r.g&&Math.random()<.6){const o=randomPiece('w',[id],true);if(o)say(o,'challenge',{name:ch.name});}}
+  render();
+}
+function askTip(){
+  if(over||busy||st.turn!=='w'||promoPick)return;
+  // Keep the selection: its move dots stay visible, and asking again hears from the same piece.
+  const id=sel!=null&&st.b[sel]&&st.b[sel].c==='w'?st.b[sel].id:randomPiece('w');
+  adviceFrom(id,'w');
+}
+
+// ================= turns =================
+function playerMove(m){
+  modelBudget=1;
+  if(!analysis)analysis=analyze(st);
+  const x=analysis.list.find(x=>x.m.from===m.from&&x.m.to===m.to&&(x.m.promo||null)===(m.promo||null));
+  const loss=x?analysis.best-x.s:0;
+  st=makeMove(st,m);bump();lastMove=m;sel=null;G[m.piece.id].moves++;
+  const adv=pendingAdvice;clearAdvice();
+  render();reactMove('w',m,loss);
+  if(adv){
+    const ch=CH[adv.id],followed=adv.from===m.from&&adv.to===m.to&&(adv.promo||null)===(m.promo||null);
+    if(followed){
+      adv.good?ch.good++:ch.bad++;
+      if(remember()){const P=pm(adv.id);adv.good?P.tipsGood++:P.tipsBad++;saveMem();}
+      if(adv.side==='w'){
+        say(adv.id,adv.good?'told':'excuse');
+        if(adv.good&&chatty()&&pieceSq('bB3')>=0&&Math.random()<.25)say('bB3','respect',{kind:TNAME[typeOf(adv.id)]});
+      }else say(adv.id,adv.good?'grudge':'gloat');
+      sys(`You took ${ch.name}'s tip. The quick engine rates it ${adv.good?'good':'bad'}.`);
+    } else if(adv.side==='w'){G[adv.id].ignored++;if(chatty()&&Math.random()<.5)say(adv.id,'sulk');}
+  }
+  pump();
+  if(checkEnd(m.piece.id))return;
+  busy=true;render();
+  aiTimer=later(aiTurn,700);
+}
+function aiTurn(){
+  modelBudget=1;
+  const a=analyze(st);
+  const cands=a.list.filter(x=>a.best-x.s<=15);
+  const m=pick(cands.length?cands:a.list).m;
+  st=makeMove(st,m);bump();lastMove=m;busy=false;G[m.piece.id].moves++;
+  legal=legalMoves(st);analysis=null;
+  render();reactMove('b',m,0);
+  if(checkEnd(m.piece.id))return;
+  later(()=>{
+    if(over||st.turn!=='w')return;
+    analysis=analyze(st);
+    if(!chatty())return;
+    const d=dangerList('w');
+    if(d.length&&Math.random()<.7){const g=G[d[0].id];g.endangered++;say(d[0].id,g.endangered>=2?'danger_again':'danger');}
+    else if(Math.random()<.15)adviceFrom(randomPiece('b'),'b');
+  },40);
+}
+function checkEnd(moverId){
+  const ms=legalMoves(st);let result=null,why='';
+  if(!ms.length){if(inCheck(st,st.turn)){result=opp(st.turn);why='mate';}else{result='d';why='stalemate';}}
+  else if(st.half>=100){result='d';why='fifty-move rule';}
+  else if(seen[posKey(st)]>=3){result='d';why='threefold repetition';}
+  else if(insufficient(st.b)){result='d';why='insufficient material';}
+  if(!result)return false;
+  over=true;busy=false;pendingAdvice=null;render();
+  if(why==='mate'){
+    $('status').textContent=result==='w'?'Checkmate. You win!':'Checkmate. Black wins.';
+    const q=result==='w'?'wB3':'bB3',k=result==='w'?'wB4':'bB4';
+    say(pieceSq(q)>=0?q:k,'win');say(st.b[kingSq(st.b,st.turn)].id,'lose');
+  } else {
+    $('status').textContent=`Draw by ${why}.`;
+    say('wB4','draw');say('bB4','draw');
+  }
+  recordGame(result,why==='mate'?moverId:null);
+  return true;
+}
+function recordGame(result,mateBy){
+  if(!remember())return;
+  MEM.games++;
+  for(const id in CH){
+    const P=pm(id),g=G[id],side=CH[id].c;
+    const res=result==='d'?'draw':result===side?'win':'loss';
+    P.games++;P[res==='win'?'wins':res==='loss'?'losses':'draws']++;
+    P.captures+=g.captures;if(g.capturedBy)P.captured++;
+    P.last={result:res,captured:!!g.capturedBy,capturedBy:g.capturedBy,sacrificed:g.sacrificed,mated:id===mateBy};
+  }
+  saveMem();updateMemLine();
+}
+
+// ================= controls =================
+try{if(localStorage.getItem(STORE+':remember')==='0')$('remember').checked=false;}catch(e){}
+$('remember').addEventListener('change',()=>{
+  try{localStorage.setItem(STORE+':remember',remember()?'1':'0');}catch(e){}
+  if(!remember()){stopSpeech();recent.length=0;$('hquote').textContent='';}
+  updateMemLine();
+});
+let forgetArmed=null;
+$('forget').addEventListener('click',()=>{
+  const bt=$('forget');
+  if(!forgetArmed){bt.textContent='Click again to forget everything';forgetArmed=setTimeout(()=>{forgetArmed=null;bt.textContent='Forget history';},3000);return;}
+  clearTimeout(forgetArmed);forgetArmed=null;bt.textContent='Forget history';
+  stopSpeech();recent.length=0;$('hquote').textContent='';
+  MEM=blankMem();saveMem();updateMemLine();sys('Past-game history cleared.');
+});
+try{if(localStorage.getItem(STORE+':model')==='0')$('modelOn').checked=false;}catch(e){}
+$('modelOn').addEventListener('change',()=>{
+  const enabled=$('modelOn').checked;
+  try{localStorage.setItem(STORE+':model',enabled?'1':'0');}catch(e){}
+  if(!enabled){for(const it of queue)it.model=null;activeSpeech?.ctl?.abort();}
+});
+// Light up model voices only where they can run; the page is complete without.
+function enableVoice(v,who){
+  voice=v;$('modelWrap').hidden=false;
+  $('modelWrap').lastChild.textContent=` Model voices (${v.label})`;
+  $('modelNote').hidden=false;
+  $('modelNote').innerHTML=`With <b>Model voices</b> on, ${who} writes one line per beat live, from what happened and what that piece remembers. Lines marked ✦ came from the model. The game still decides every move and every event, and the pieces fall back to their scripted lines whenever the model is slow or unavailable.`;
+}
+const isLocal=/^https?:$/.test(location.protocol)&&['127.0.0.1','localhost'].includes(location.hostname);
+if(isLocal){
+  // Local mode (voices/serve.py): any adapter in voices/adapters.json.
+  fetch('/api/health').then(r=>r.ok?r.json():null).then(h=>{
+    if(!h||!h.ok)return;
+    enableVoice({label:h.model,timeoutMs:h.timeoutMs||30000,ask:async(prompt,signal)=>{
+      let r;
+      try{r=await fetch('/api/line',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({prompt}),signal});}
+      catch(e){throw {code:signal.aborted?'cancelled':'upstream_error'};}
+      const j=await r.json().catch(()=>({}));
+      if(r.ok&&j.ok)return {text:j.text};
+      throw {code:r.status===429?'rate_limited':r.status===403||r.status===404?'not_declared':'upstream_error',message:j.error};
+    }},`${h.model} (through your local ${h.adapter} adapter)`);
+  }).catch(()=>{});
+} else if(window.claude&&typeof window.claude.use==='function'){
+  window.claude.use('sample').then(s=>{if(s)enableVoice({label:'Claude',timeoutMs:6000,ask:(prompt,signal)=>s(prompt,{modelTier:'quick',signal})},'Claude, on your own Claude usage,');}).catch(()=>{});
+}
+$('ask').addEventListener('click',askTip);
+$('new').addEventListener('click',newGame);
+newGame();
+</script>
