@@ -3,15 +3,21 @@
 Chess where the pieces talk. Two ways to play:
 
 - **The page** (`web/index.html`): you play; the pieces react, advise, grumble and remember. With no model attached it uses scripted lines. Attach a model and the pieces phrase their own lines.
-- **The table** (`table/play.mjs`): two models play each other. Each one sees only the board and writes its move in chess notation. It gets no list of legal moves and no engine hints. The pieces talk between moves, and the players can talk to each other and to the pieces.
+- **The table** (`table/play.mjs`): two models play each other. Each one receives the current board, last move and recent table talk, and writes its move in chess notation. It gets no list of legal moves and no engine hints. The pieces supply scripted reactions between moves; model players can talk to each other and address the pieces. This standalone runner does not yet generate model-written replies from the pieces.
 
 The rules engine (`src/chess-core.js`) and the cast (`src/chess-cast.js`) are plain JavaScript with no dependencies, shared by both.
+
+## Release scope
+
+This is the standalone chess page, rules engine, cast, table runner and provider adapters—not the companion application or its cognitive architecture. The browser page supports optional model-written piece lines; the standalone table currently uses scripted cast reactions. A demonstration recorded in another host is not a reproduction run of this runner.
+
+The cast character named Margo is a chess queen, distinct from any companion player of the same name.
 
 ## Requirements
 
 - Node 18 or newer (the table, and the Codex adapter)
 - Python 3.9 or newer (the local page server and the API adapters)
-- One model connection, set up below
+- A model connection for model-driven play or voices (none needed for the scripted browser page)
 
 ## Connect a model
 
@@ -58,6 +64,8 @@ Each player answers with `{"move": "...", "says": "..."}`.
 - **Illegal or unclear moves:** the table says the move back once and asks again. Three in a row end the game without a result.
 - **Ending a game:** `resign` concedes; `stop` leaves without a result.
 
+Configured models must be available to your account; change the example model IDs as needed. Provider usage may incur charges.
+
 The transcript goes to `table/games/<id>.md`. Every prompt and reply also goes to `table/games/<id>.jsonl`.
 
 ## Tests
@@ -67,3 +75,9 @@ node test/table.test.mjs
 ```
 
 These cover engine move counts (perft), move matching (notation, captures, castling, promotion) and scripted games. None of them make model calls.
+
+## Credits and rights
+
+A Sheila Studios project: concept by Shel; direction by James Mayo; implementation by Seam; play, review and design contributions by Sheila; en-passant repetition correction by Rowan.
+
+Source is published for inspection. No software reuse license is granted in this release; publication does not license private architecture, game recordings or participant histories.

@@ -1,7 +1,7 @@
 <title>Talking Pieces Chess</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <!-- Talking Pieces chess slice (concept: Shel, Talking-Pieces-Game-Design-and-Reasoning-Report-v1; review: Sheila 11-09).
-     Scripted voices, no model calls. The player controls every move; pieces talk, advise, and remember. Seam, 2026-11-09. -->
+     Scripted voices with optional model phrasing. The player controls White; pieces talk, advise, and remember. Seam, 2026-11-09. -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&family=Nunito+Sans:wght@400;600;700&family=Patrick+Hand&display=swap">
@@ -429,7 +429,7 @@ function addLog(id,text,byModel){
   const ch=CH[id],e=document.createElement('div');e.className='e '+ch.c;
   const g=document.createElement('span');g.className='g';g.textContent=GLYPH[typeOf(id)]+'︎';
   const t=document.createElement('span');const n=document.createElement('b');n.className='n';n.textContent=ch.name+': ';t.append(n,document.createTextNode(text));
-  if(byModel){const k=document.createElement('span');k.className='mk';k.textContent=' ✦';k.title='Written live by Claude';t.append(k);}
+  if(byModel){const k=document.createElement('span');k.className='mk';k.textContent=' ✦';k.title='Written live by the configured model';t.append(k);}
   e.append(g,t);$('log').prepend(e);trimLog();
 }
 function sys(text){const e=document.createElement('div');e.className='e sys';e.textContent=text;$('log').prepend(e);trimLog();}
