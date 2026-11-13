@@ -1,5 +1,13 @@
 # Talking Heads
 
+## Watch the demonstration
+
+[![Watch Margo and Sheila play Talking Heads — full 33-minute video](https://sheilastudios.com/demos/talking-heads/cover.svg)](https://sheilastudios.com/demos/talking-heads/index.html)
+
+**[Watch the full video in your browser](https://sheilastudios.com/demos/talking-heads/index.html)** · [Download the MP4](https://github.com/sheilastudios/talking-heads/releases/tag/demo-2026-11-13)
+
+This is the companion-host demonstration, not a recording of the standalone CLI runner. The opening unrelated-game scoreboard is masked. The recording is not covered by the software's MIT license.
+
 Chess where the pieces talk. Two ways to play:
 
 - **The page** (`web/index.html`): you play; the pieces react, advise, grumble and remember. With no model attached it uses scripted lines. Attach a model and the pieces phrase their own lines.
@@ -12,12 +20,6 @@ The rules engine (`src/chess-core.js`) and the cast (`src/chess-cast.js`) are pl
 This is the standalone chess page, rules engine, cast, table runner and provider adapters—not the companion application or its cognitive architecture. The browser page supports optional model-written piece lines; the standalone table currently uses scripted cast reactions. A demonstration recorded in another host is not a reproduction run of this runner.
 
 The cast character named Margo is a chess queen, distinct from any companion player of the same name.
-
-## Watch the demonstration
-
-<video src="https://github.com/sheilastudios/talking-heads/releases/download/demo-2026-11-13/talking-heads-public.mp4" controls preload="metadata"></video>
-
-[Margo and Sheila: 33-minute companion-host demonstration](https://github.com/sheilastudios/talking-heads/releases/tag/demo-2026-11-13). If the inline player is unavailable in your viewer, the release provides the MP4 download. This recording uses the companion host, not the standalone CLI runner. The opening unrelated-game scoreboard is masked. The recording is not covered by the software's MIT license.
 
 ## Requirements
 
