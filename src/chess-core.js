@@ -1,5 +1,5 @@
 // Talking Pieces chess core: rules, search, and helpers for model players. One engine for the Talking Pieces page
-// (browser global `ChessCore`) and the table runner (Node, through chess-cli.mjs). Seam, 2026-11-09.
+// (browser global `ChessCore`) and the table runner (Node, through chess-cli.mjs).
 // Board: 64 squares, index = row*8 + col, row 0 is rank 8. A piece is {c:'w'|'b', t:'p'|'n'|'b'|'r'|'q'|'k', id?}.
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();

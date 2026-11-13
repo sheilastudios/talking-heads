@@ -1,5 +1,5 @@
 // Talking Pieces cast: names, voices and the line library, plus the moments a move gives the pieces. Shared by the
-// Talking Pieces page (browser global `ChessCast`) and the table runner's games (Node, through chess-cli.mjs). Seam, 2026-11-09.
+// Talking Pieces page (browser global `ChessCast`) and the table runner's games (Node, through chess-cli.mjs).
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory(require('./chess-core.js'));
   else root.ChessCast = factory(root.ChessCore);
